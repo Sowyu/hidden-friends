@@ -3,25 +3,24 @@ import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { after } from "@vendetta/patcher";
 import { storage } from "@vendetta/plugin";
 import { useProxy } from "@vendetta/storage";
-import { Forms } from "@vendetta/ui/components";
 import { showToast } from "@vendetta/ui/toasts";
 
 import { isAvailable, unlock } from "./lock";
 import Settings from "./Settings";
 
-const { FormRow } = Forms;
-const UserStore = findByStoreName("UserStore");
-const { openPrivateChannel } = findByProps("openPrivateChannel");
-
-storage.users ??= [] as string[]; // user IDs
-storage.label ??= "";             // text on the hidden row; empty = blank row
-storage.credentialId ??= null;    // passkey id once enrolled
-
+// Nothing at module top level may throw: Revenge swallows load errors and the
+// toggle just flips back. Every Discord lookup happens at use time.
 const UNLOCK_MS = 60_000; // list hides itself again after a minute
 
 function displayName(id: string) {
-    const u = UserStore.getUser?.(id);
+    const u = findByStoreName("UserStore")?.getUser?.(id);
     return u?.globalName ?? u?.username ?? id;
+}
+
+function openDM(id: string) {
+    const mod = findByProps("openPrivateChannel");
+    if (!mod) return showToast("Hidden Friends: openPrivateChannel not found");
+    mod.openPrivateChannel({ recipientIds: [id] }); // shape verified in Discord 345.9
 }
 
 function HiddenRow() {
@@ -50,21 +49,24 @@ function HiddenRow() {
         }
     };
 
+    const users: string[] = storage.users ?? [];
     return (
         <RN.View>
-            {open && (storage.users as string[]).map((id) => (
-                <FormRow
+            {open && users.map((id) => (
+                <RN.Pressable
                     key={id}
-                    label={displayName(id)}
-                    onPress={() => { setOpen(false); openPrivateChannel(id); }}
-                />
+                    onPress={() => { setOpen(false); openDM(id); }}
+                    style={{ minHeight: 48, justifyContent: "center", paddingHorizontal: 16 }}
+                >
+                    <RN.Text style={{ color: "#dbdee1", fontSize: 16 }}>{displayName(id)}</RN.Text>
+                </RN.Pressable>
             ))}
-            {open && storage.users.length === 0 && (
-                <FormRow label="No one added yet. Add user IDs in the plugin settings." />
+            {open && users.length === 0 && (
+                <RN.Text style={{ color: "#949ba4", padding: 16 }}>No one added yet. Add user IDs in the plugin settings.</RN.Text>
             )}
             <RN.Pressable onPress={tap} style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 16 }}>
                 <RN.Text style={{ color: "rgba(128,128,128,0.35)", fontSize: 12 }}>
-                    {open ? "▲" : storage.label}
+                    {open ? "▲" : storage.label ?? ""}
                 </RN.Text>
             </RN.Pressable>
         </RN.View>
@@ -84,6 +86,7 @@ function withFooter(res: any) {
 }
 
 function patchFriendsScreen(): (() => void) | undefined {
+    // Discord 345.9: modules/main_tabs_v2/native/friends/screens/FriendsScreen.tsx, default export, plain function
     const mod = findByName("FriendsScreen", false) ?? findByProps("FriendsScreen");
     if (!mod) return;
     for (const key of ["default", "FriendsScreen"]) {
@@ -98,11 +101,20 @@ let unpatch: (() => void) | undefined;
 
 export default {
     onLoad() {
-        unpatch = patchFriendsScreen();
-        if (!unpatch) showToast("Hidden Friends: FriendsScreen not found, tell anika the Discord version");
+        try {
+            storage.users ??= [];
+            storage.label ??= "";
+            storage.credentialId ??= null;
+            unpatch = patchFriendsScreen();
+            if (!unpatch) showToast("Hidden Friends: FriendsScreen not found, tell anika the Discord version");
+        } catch (e: any) {
+            showToast(`Hidden Friends failed to load: ${e?.message ?? e}`);
+            throw e;
+        }
     },
     onUnload() {
         unpatch?.();
+        unpatch = undefined;
     },
     settings: Settings,
 };

@@ -1,9 +1,9 @@
 // Fingerprint / screen-lock gate.
 // Discord ships no biometric prompt module, but it does ship the passkey
-// bridge (NativeSecurityKeyManagerModule, backed by Android Credential
-// Manager). A passkey assertion with userVerification "required" makes the
-// OS ask for fingerprint, face, or PIN. We never verify the signature; the
-// OS prompt is the lock.
+// bridge (DCDSecurityKeyManager, backed by Android Credential Manager). A
+// passkey assertion with userVerification "required" makes the OS ask for
+// fingerprint, face, or PIN. We never verify the signature; the OS prompt is
+// the lock.
 import { ReactNative as RN } from "@vendetta/metro/common";
 import { storage } from "@vendetta/plugin";
 
@@ -13,28 +13,30 @@ const USER_NAME = "hidden-friends-lock";
 function nativeModule(...names: string[]) {
     const g = globalThis as any;
     for (const n of names) {
-        const tm = g.__turboModuleProxy?.(n);
-        if (tm) return tm;
+        try {
+            const tm = g.__turboModuleProxy?.(n);
+            if (tm) return tm;
+        } catch {}
         const m = g.nativeModuleProxy?.[n] ?? (RN.NativeModules as any)?.[n];
         if (m) return m;
     }
     return undefined;
 }
 
-export const passkeys = nativeModule("NativeSecurityKeyManagerModule", "DCDSecurityKeyManager");
+export const passkeys = () => nativeModule("DCDSecurityKeyManager", "NativeSecurityKeyManagerModule");
 
-// ponytail: Math.random challenge. The gate is the OS prompt, not the
-// signature, so cryptographic randomness buys nothing here.
-function b64url(bytes: number[]) {
-    const bin = String.fromCharCode(...bytes);
-    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
+// ponytail: Math.random challenge, hand-rolled base64url (Hermes has no btoa).
+// The gate is the OS prompt, not the signature, so randomness quality is moot.
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 function randomB64(n: number) {
-    return b64url(Array.from({ length: n }, () => Math.floor(Math.random() * 256)));
+    let out = "";
+    for (let i = 0; i < Math.ceil((n * 4) / 3); i++) out += B64[Math.floor(Math.random() * 64)];
+    return out;
 }
 
 export function isAvailable() {
-    return !!passkeys?.authenticatePasskey && !!passkeys?.registerPasskey;
+    const m = passkeys();
+    return typeof m?.authenticatePasskey === "function" && typeof m?.registerPasskey === "function";
 }
 
 async function enroll(): Promise<string> {
@@ -54,7 +56,8 @@ async function enroll(): Promise<string> {
         timeout: 60000,
         attestation: "none",
     };
-    const res = JSON.parse(await passkeys.registerPasskey(JSON.stringify(req)));
+    const raw = await passkeys().registerPasskey(JSON.stringify(req));
+    const res = typeof raw === "string" ? JSON.parse(raw) : raw;
     if (!res?.id) throw new Error("passkey registration returned no id");
     return res.id as string;
 }
@@ -73,6 +76,7 @@ export async function unlock(): Promise<boolean> {
         userVerification: "required",
         timeout: 60000,
     };
-    const res = JSON.parse(await passkeys.authenticatePasskey(JSON.stringify(req)));
+    const raw = await passkeys().authenticatePasskey(JSON.stringify(req));
+    const res = typeof raw === "string" ? JSON.parse(raw) : raw;
     return res?.id === storage.credentialId;
 }
