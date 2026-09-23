@@ -212,8 +212,10 @@ export default {
             storage.users ??= [];
             storage.label ??= "";
             unpatch = patchFriendsScreen();
-            unpatchStores = patchStores();
+            const stores = patchStores();
+            unpatchStores = stores.unpatch;
             refreshLists();
+            if (stores.hooks < 3) showToast(`Hidden Friends: only ${stores.hooks}/3 list hooks found, people may stay visible`);
             if (!unpatch) showToast("Hidden Friends: FriendsScreen not found, tell anika the Discord version");
         } catch (e: any) {
             showToast(`Hidden Friends failed to load: ${e?.message ?? e}`);

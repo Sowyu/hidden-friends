@@ -1,6 +1,6 @@
 // Hides vault people from the normal Messages and Friends lists.
-// Discord 345.9: the Messages tab reads PrivateChannelSortStore
-// (getPrivateChannelIds / getSortedChannels), the Friends tab reads
+// Discord 345.9: the Messages tab reads PrivateChannelSortStore.getSortedChannels(),
+// which returns [favorites, defaults] of { channelId, lastMessageId, isFavorite, isRequest }, the Friends tab reads
 // RelationshipStore.getFriendIDs. Filtering those three getters is enough
 // for the lists; badges, search and the quick switcher still see them.
 import { findByStoreName } from "@vendetta/metro";
@@ -17,7 +17,7 @@ function isHiddenChannel(chOrId: any) {
     return r.length === 1 && hidden().has(r[0]);
 }
 
-export function patchStores(): () => void {
+export function patchStores(): { unpatch: () => void; hooks: number } {
     const ps = findByStoreName("PrivateChannelSortStore");
     const rs = findByStoreName("RelationshipStore");
     const un: (() => void)[] = [];
@@ -25,10 +25,10 @@ export function patchStores(): () => void {
         un.push(after("getPrivateChannelIds", ps, (_, ids) => Array.isArray(ids) ? ids.filter((id: string) => !isHiddenChannel(id)) : ids));
     if (typeof ps?.getSortedChannels === "function")
         un.push(after("getSortedChannels", ps, (_, sections) =>
-            Array.isArray(sections) ? sections.map((s: any) => Array.isArray(s) ? s.filter((c: any) => !isHiddenChannel(c?.channel ?? c?.id ?? c)) : s) : sections));
+            Array.isArray(sections) ? sections.map((s: any) => Array.isArray(s) ? s.filter((c: any) => !isHiddenChannel(c?.channelId ?? c?.channel ?? c?.id ?? c)) : s) : sections));
     if (typeof rs?.getFriendIDs === "function")
         un.push(after("getFriendIDs", rs, (_, ids) => Array.isArray(ids) ? ids.filter((id: string) => !hidden().has(id)) : ids));
-    return () => un.forEach((u) => u());
+    return { unpatch: () => un.forEach((u) => u()), hooks: un.length };
 }
 
 /** Call after storage.users changes so open lists redraw. */
