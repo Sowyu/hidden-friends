@@ -104,7 +104,6 @@ export default {
         try {
             storage.users ??= [];
             storage.label ??= "";
-            storage.credentialId ??= null;
             unpatch = patchFriendsScreen();
             if (!unpatch) showToast("Hidden Friends: FriendsScreen not found, tell anika the Discord version");
         } catch (e: any) {

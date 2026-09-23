@@ -81,7 +81,7 @@ export default function Settings() {
                 <Row
                     label="Reset lock"
                     subLabel="Forgets the passkey id. Delete the old one from Google Password Manager yourself."
-                    onPress={() => { storage.credentialId = null; showToast("Lock reset"); }}
+                    onPress={() => { delete storage.credentialId; showToast("Lock reset"); }}
                 />
             </Group>
         </RN.ScrollView>
