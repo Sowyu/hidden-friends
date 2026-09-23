@@ -1,0 +1,14 @@
+{
+    "name": "Hidden Friends",
+    "description": "A blank row at the bottom of the Friends tab. Tap it, pass your fingerprint or screen lock, and get a private list of people to DM.",
+    "authors": [
+        {
+            "name": "anika",
+            "id": "0"
+        }
+    ],
+    "main": "src/index.tsx",
+    "vendetta": {
+        "icon": "ic_lock"
+    }
+}
