@@ -26,3 +26,29 @@ Side effect: Google Password Manager shows a passkey named `hidden-friends-lock`
 Verified against Discord Android 345.9: `FriendsScreen` is a plain default-exported function,
 `DCDSecurityKeyManager.authenticatePasskey(requestJson)` takes WebAuthn JSON,
 `openPrivateChannel(userId)` navigates to the DM.
+
+## Lock modes
+
+**PIN (default).** First tap on the pill asks you to choose a 4 to 8 digit PIN. Change it in settings.
+
+**Fingerprint (passkey).** Discord's Android app has no fingerprint prompt of its own. The only
+route is its passkey bridge, and passkey providers (Bitwarden, Google Password Manager) check the
+calling app against the domain's `/.well-known/assetlinks.json`. Revenge Manager signs the patched
+app with a key it generates on your phone, so `discord.com` refuses it. To make it work you need a
+domain you control:
+
+1. Get the signing cert fingerprint of the installed app (from a PC with adb):
+   ```
+   adb shell pm list packages | grep -i -e discord -e revenge     # note the package name
+   adb pull "$(adb shell pm path <package> | head -1 | cut -d: -f2)" revenge.apk
+   apksigner verify --print-certs revenge.apk | grep SHA-256
+   ```
+2. Host this at `https://<your-domain>/.well-known/assetlinks.json` (content-type application/json), with the package name and the SHA-256 in `AA:BB:...` form:
+   ```json
+   [{"relation":["delegate_permission/common.handle_all_urls","delegate_permission/common.get_login_creds"],
+     "target":{"namespace":"android_app","package_name":"<package>","sha256_cert_fingerprints":["<SHA-256>"]}}]
+   ```
+3. Plugin settings, Lock: pick "Fingerprint (passkey)", set the passkey domain to `<your-domain>`.
+4. Tap the pill. The first tap enrols a passkey named `hidden-friends-lock` under your domain, later taps prompt for fingerprint.
+
+If you reinstall Revenge from a wiped manager, the key changes and step 1 has to be redone.

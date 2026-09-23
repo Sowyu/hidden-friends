@@ -7,6 +7,7 @@ import { getAssetIDByName } from "@vendetta/ui/assets";
 import { showToast } from "@vendetta/ui/toasts";
 
 import { refreshLists } from "./hide";
+import { hasPin, mode, setPin, validPin } from "./lock";
 
 // Discord 345.9 has no FormRow any more; these are the redesign components.
 // Every lookup happens at render time and falls back to plain RN, so a rename
@@ -151,6 +152,7 @@ export default function Settings() {
     useProxy(storage);
     const s = makeStyles();
     const [query, setQuery] = React.useState("");
+    const [newPin, setNewPin] = React.useState("");
 
     const users: string[] = Array.isArray(storage.users) ? [...storage.users] : [];
     const results = searchFriends(query, users);
@@ -208,20 +210,36 @@ export default function Settings() {
             <Group title="Lock">
                 <Row
                     s={s}
-                    icon={<RowIcon name="LockIcon" />}
-                    label={storage.credentialId ? "Fingerprint lock enrolled" : "Not enrolled yet"}
-                    subLabel={storage.credentialId ? undefined : "The first tap on the row enrols it."}
+                    icon={<RowIcon name={mode() === "pin" ? "CheckmarkLargeIcon" : "CircleIcon"} />}
+                    label="PIN"
+                    subLabel={hasPin() ? "Set. Works on any build." : "Not set yet. The first tap on the pill asks for one."}
+                    onPress={() => { storage.lockMode = "pin"; }}
                 />
-                <RN.Text style={s.helper}>
-                    The lock is a local passkey. Google Password Manager lists it as hidden-friends-lock under discord.com. It is never used to log in.
-                </RN.Text>
                 <Row
                     s={s}
-                    icon={<RowIcon name="RetryIcon" />}
-                    label="Reset lock"
-                    subLabel="Forgets the passkey. Delete the old entry in Google Password Manager yourself."
-                    onPress={() => { delete storage.credentialId; showToast("Lock reset. Next tap on the row enrols a new one."); }}
+                    icon={<RowIcon name={mode() === "passkey" ? "CheckmarkLargeIcon" : "CircleIcon"} />}
+                    label="Fingerprint (passkey)"
+                    subLabel="Needs a domain of yours with assetlinks.json for this Revenge install. See README. Bitwarden or Google Password Manager will refuse otherwise."
+                    onPress={() => { storage.lockMode = "passkey"; }}
                 />
+                {mode() === "pin" && (
+                    <Input s={s} label="Change PIN (4 to 8 digits)" placeholder="New PIN" value={newPin} onChange={setNewPin} />
+                )}
+                {mode() === "pin" && validPin(newPin) && (
+                    <Row s={s} label="Save new PIN" onPress={() => { setPin(newPin); setNewPin(""); showToast("PIN changed"); }} />
+                )}
+                {mode() === "passkey" && (
+                    <Input s={s} label="Passkey domain (rpId)" placeholder="discord.com" value={storage.rpId ?? ""} onChange={(v: string) => (storage.rpId = v.trim())} />
+                )}
+                {mode() === "passkey" && (
+                    <Row
+                        s={s}
+                        icon={<RowIcon name="RetryIcon" />}
+                        label={storage.credentialId ? "Reset passkey (enrolled)" : "Reset passkey (not enrolled)"}
+                        subLabel="Forgets the passkey. Delete the old entry in your password manager yourself."
+                        onPress={() => { delete storage.credentialId; showToast("Passkey reset. Next tap on the pill enrols a new one."); }}
+                    />
+                )}
             </Group>
         </RN.ScrollView>
     );

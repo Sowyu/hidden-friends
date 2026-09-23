@@ -1,4 +1,4 @@
-import { findByName, findByProps, findByStoreName } from "@vendetta/metro";
+import { find, findByName, findByProps, findByStoreName } from "@vendetta/metro";
 import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { after } from "@vendetta/patcher";
 import { storage } from "@vendetta/plugin";
@@ -7,7 +7,7 @@ import { getAssetIDByName } from "@vendetta/ui/assets";
 import { showToast } from "@vendetta/ui/toasts";
 
 import { patchStores, refreshLists } from "./hide";
-import { isAvailable, unlock } from "./lock";
+import { checkPin, hasPin, mode, passkeyAvailable, setPin, unlockPasskey, validPin } from "./lock";
 import Settings from "./Settings";
 
 // Nothing at module top level may throw: Revenge swallows load errors and the
@@ -89,6 +89,8 @@ function HiddenRow() {
     const [until, setUntil] = React.useState(0); // 0 = locked
     const [busy, setBusy] = React.useState(false);
     const [now, setNow] = React.useState(Date.now());
+    const [pinOpen, setPinOpen] = React.useState(false);
+    const [pin, setPin1] = React.useState("");
 
     const open = until > now;
     const lock = () => setUntil(0);
@@ -105,22 +107,38 @@ function HiddenRow() {
         return () => sub?.remove?.();
     }, []);
 
+    const unlocked = () => {
+        haptic();
+        setPinOpen(false);
+        setPin1("");
+        setNow(Date.now());
+        setUntil(Date.now() + UNLOCK_S * 1000);
+    };
+
+    const submitPin = () => {
+        if (!hasPin()) {
+            if (!validPin(pin)) return showToast("PIN must be 4 to 8 digits");
+            setPin(pin);
+            showToast("PIN set");
+            return unlocked();
+        }
+        if (checkPin(pin)) return unlocked();
+        setPin1("");
+        showToast("Wrong PIN");
+    };
+
     const tap = async () => {
         if (busy) return;
-        if (!isAvailable()) return showToast("Hidden Friends: this Discord build has no passkey module");
+        if (mode() === "pin") return setPinOpen((v) => !v);
+        if (!passkeyAvailable()) return showToast("Hidden Friends: this Discord build has no passkey module");
         setBusy(true);
         try {
-            if (await unlock()) {
-                haptic();
-                setNow(Date.now());
-                setUntil(Date.now() + UNLOCK_S * 1000);
-            } else {
-                showToast("Hidden Friends: lock didn't match. Reset it in the plugin settings.");
-            }
+            if (await unlockPasskey()) unlocked();
+            else showToast("Hidden Friends: lock didn't match. Reset it in the plugin settings.");
         } catch (e: any) {
             // Cancelled prompts land here too; stay quiet unless it is a real error.
             const msg = String(e?.message ?? e);
-            if (!/cancel|NotAllowed|AbortError/i.test(msg)) showToast(`Hidden Friends: ${msg}`);
+            if (!/cancel|AbortError/i.test(msg)) showToast(`Hidden Friends: ${msg}`);
         } finally {
             setBusy(false);
         }
@@ -129,18 +147,39 @@ function HiddenRow() {
     if (!open) {
         const lockIcon = icon("LockIcon", "ic_lock");
         return (
-            <RN.Pressable
-                onPress={tap}
-                disabled={busy}
-                accessibilityRole="button"
-                accessibilityLabel="Unlock private list"
-                style={{ alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, marginVertical: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: "rgba(128,128,128,0.08)", opacity: busy ? 0.7 : 0.35 }}
-            >
-                {busy
-                    ? <RN.ActivityIndicator size="small" color={MUTED} />
-                    : lockIcon !== undefined && <RN.Image source={lockIcon} style={{ width: 14, height: 14, tintColor: MUTED }} />}
-                <Label variant="text-xs/medium" color="text-muted">{busy ? "Unlocking..." : storage.label || "Private"}</Label>
-            </RN.Pressable>
+            <RN.View>
+                {pinOpen && (
+                    <RN.View style={{ margin: 8, marginBottom: 0, padding: 12, borderRadius: 16, backgroundColor: "rgba(128,128,128,0.08)", flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <RN.TextInput
+                            value={pin}
+                            onChangeText={setPin1}
+                            onSubmitEditing={submitPin}
+                            placeholder={hasPin() ? "PIN" : "Choose a 4 to 8 digit PIN"}
+                            placeholderTextColor={MUTED}
+                            keyboardType="number-pad"
+                            secureTextEntry
+                            autoFocus
+                            maxLength={8}
+                            style={{ flex: 1, color: "#dbdee1", fontSize: 16, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.25)" }}
+                        />
+                        <RN.Pressable onPress={submitPin} accessibilityRole="button" style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, backgroundColor: "#5865f2" }}>
+                            <RN.Text style={{ color: "#fff", fontWeight: "600" }}>{hasPin() ? "Unlock" : "Set"}</RN.Text>
+                        </RN.Pressable>
+                    </RN.View>
+                )}
+                <RN.Pressable
+                    onPress={tap}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityLabel="Unlock private list"
+                    style={{ alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, marginVertical: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: "rgba(128,128,128,0.08)", opacity: busy || pinOpen ? 0.7 : 0.35 }}
+                >
+                    {busy
+                        ? <RN.ActivityIndicator size="small" color={MUTED} />
+                        : lockIcon !== undefined && <RN.Image source={lockIcon} style={{ width: 14, height: 14, tintColor: MUTED }} />}
+                    <Label variant="text-xs/medium" color="text-muted">{busy ? "Unlocking..." : storage.label || "Private"}</Label>
+                </RN.Pressable>
+            </RN.View>
         );
     }
 
@@ -191,9 +230,7 @@ function withFooter(res: any) {
     );
 }
 
-function patchFriendsScreen(): (() => void) | undefined {
-    // Discord 345.9: modules/main_tabs_v2/native/friends/screens/FriendsScreen.tsx, default export, plain function
-    const mod = findByName("FriendsScreen", false) ?? findByProps("FriendsScreen");
+function patchExport(mod: any): (() => void) | undefined {
     if (!mod) return;
     for (const key of ["default", "FriendsScreen"]) {
         const exp = mod[key];
@@ -203,7 +240,21 @@ function patchFriendsScreen(): (() => void) | undefined {
     }
 }
 
+function patchFriendsScreen() {
+    // Discord 345.9: modules/main_tabs_v2/native/friends/screens/FriendsScreen.tsx, default export, plain function
+    return patchExport(findByName("FriendsScreen", false) ?? findByProps("FriendsScreen"));
+}
+
+function patchMessagesTab() {
+    // Discord 345.9: modules/main_tabs_v2/native/tabs/messages/Messages.tsx exports React.memo(Messages).
+    // Another function named Messages exists with zero params, hence the length check.
+    const memo = Symbol.for("react.memo");
+    const mod = find((m: any) => m?.default?.$$typeof === memo && m.default.type?.name === "Messages" && m.default.type.length === 1);
+    return patchExport(mod);
+}
+
 let unpatch: (() => void) | undefined;
+let unpatchMessages: (() => void) | undefined;
 let unpatchStores: (() => void) | undefined;
 
 export default {
@@ -212,6 +263,8 @@ export default {
             storage.users ??= [];
             storage.label ??= "";
             unpatch = patchFriendsScreen();
+            unpatchMessages = patchMessagesTab();
+            if (!unpatchMessages) showToast("Hidden Friends: Messages tab not found, pill only on Friends tab");
             const stores = patchStores();
             unpatchStores = stores.unpatch;
             refreshLists();
@@ -225,6 +278,8 @@ export default {
     onUnload() {
         unpatch?.();
         unpatch = undefined;
+        unpatchMessages?.();
+        unpatchMessages = undefined;
         unpatchStores?.();
         unpatchStores = undefined;
         refreshLists();
