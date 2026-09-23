@@ -44,7 +44,7 @@ function HiddenRow() {
             if (await unlock()) setOpen(true);
         } catch (e: any) {
             // cancelled prompts land here too; stay quiet unless it is a real error
-            if (!/cancel|NotAllowed/i.test(String(e?.message ?? e))) showToast(`Hidden Friends: ${e?.message ?? e}`);
+            if (!/cancel|NotAllowed|AbortError/i.test(String(e?.message ?? e))) showToast(`Hidden Friends: ${e?.message ?? e}`);
         } finally {
             setBusy(false);
         }
