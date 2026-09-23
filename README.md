@@ -1,7 +1,7 @@
 # Hidden Friends
 
 Bunny / Revenge (Vendetta API) plugin. Adds a faint "Private" pill under the Friends tab (rename it in settings).
-Tap it, pass fingerprint or screen lock, and a short list of people appears. Tap one to open the DM.
+People in the vault are hidden from the Messages and Friends lists. Tap the pill, pass fingerprint or screen lock, and the list appears. Tap one to open the DM.
 The list hides again after 60 seconds or after you open a DM.
 
 ## Install

@@ -6,6 +6,7 @@ import { useProxy } from "@vendetta/storage";
 import { getAssetIDByName } from "@vendetta/ui/assets";
 import { showToast } from "@vendetta/ui/toasts";
 
+import { patchStores, refreshLists } from "./hide";
 import { isAvailable, unlock } from "./lock";
 import Settings from "./Settings";
 
@@ -203,6 +204,7 @@ function patchFriendsScreen(): (() => void) | undefined {
 }
 
 let unpatch: (() => void) | undefined;
+let unpatchStores: (() => void) | undefined;
 
 export default {
     onLoad() {
@@ -210,6 +212,8 @@ export default {
             storage.users ??= [];
             storage.label ??= "";
             unpatch = patchFriendsScreen();
+            unpatchStores = patchStores();
+            refreshLists();
             if (!unpatch) showToast("Hidden Friends: FriendsScreen not found, tell anika the Discord version");
         } catch (e: any) {
             showToast(`Hidden Friends failed to load: ${e?.message ?? e}`);
@@ -219,6 +223,9 @@ export default {
     onUnload() {
         unpatch?.();
         unpatch = undefined;
+        unpatchStores?.();
+        unpatchStores = undefined;
+        refreshLists();
     },
     settings: Settings,
 };

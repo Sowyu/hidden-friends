@@ -6,6 +6,8 @@ import { semanticColors } from "@vendetta/ui";
 import { getAssetIDByName } from "@vendetta/ui/assets";
 import { showToast } from "@vendetta/ui/toasts";
 
+import { refreshLists } from "./hide";
+
 // Discord 345.9 has no FormRow any more; these are the redesign components.
 // Every lookup happens at render time and falls back to plain RN, so a rename
 // can't blank the page.
@@ -158,11 +160,13 @@ export default function Settings() {
     const add = (id: string) => {
         if (users.includes(id)) return;
         storage.users = [...users, id]; // replace wholesale, safe with the storage proxy
+        refreshLists();
         setQuery("");
         showToast(`Added ${names(id).display}`);
     };
     const remove = (id: string) => {
         storage.users = users.filter((x) => x !== id);
+        refreshLists();
         showToast(`Removed ${names(id).display}`);
     };
 
@@ -179,7 +183,7 @@ export default function Settings() {
         <RN.ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 8, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
             <Group title="People">
                 {users.length === 0
-                    ? <Row s={s} label="No one yet" subLabel="Search below to add someone. They show up when you unlock the hidden row." />
+                    ? <Row s={s} label="No one yet" subLabel="Search below to add someone. They disappear from Messages and Friends and only show in the vault." />
                     : users.map((id) => {
                         const n = names(id);
                         return <Row key={id} s={s} label={n.display} subLabel={n.handle} icon={<Avatar u={n.u} s={s} />} trailing={removeButton(id)} />;
