@@ -1,0 +1,7 @@
+{
+    "name": "Hello Test",
+    "description": "Diagnostic: shows a toast when enabled. Nothing else.",
+    "authors": [{ "name": "anika", "id": "0" }],
+    "main": "src/index.ts",
+    "vendetta": { "icon": "ic_badge_staff" }
+}

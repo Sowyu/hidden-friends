@@ -1,0 +1,1 @@
+(function(e,o){"use strict";var t={onLoad(){o.showToast("Hello Test loaded")},onUnload(){o.showToast("Hello Test unloaded")}};return e.default=t,Object.defineProperty(e,"__esModule",{value:!0}),e})({},vendetta.ui.toasts);
