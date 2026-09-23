@@ -75,9 +75,11 @@ function patchFriendsScreen(): (() => void) | undefined {
 function patchMessagesLists(): (() => void)[] {
     const un: (() => void)[] = [];
     for (const name of ["MessagesFlashList", "MessagesLegendList", "MessagesFastestList"]) {
-        const mod = findByName(name, false);
-        const exp = mod?.default;
-        const target = exp && typeof exp.render === "function" ? exp : exp?.type && typeof exp.type.render === "function" ? exp.type : undefined;
+        // memo objects have no .name, so findByName misses them; match the inner render function.
+        const inner = (e: any) => (typeof e?.render === "function" ? e : typeof e?.type?.render === "function" ? e.type : undefined);
+        const named = (e: any) => inner(e)?.render?.name === name;
+        const mod = find((m: any) => named(m) || named(m?.default));
+        const target = inner(named(mod) ? mod : mod?.default);
         if (!target) continue;
         un.push(before("render", target, (args) => {
             const props = args[0] ?? {};
