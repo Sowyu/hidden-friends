@@ -1,6 +1,6 @@
 # Hidden Friends
 
-Bunny / Revenge (Vendetta API) plugin. Adds a near-invisible row under the Friends tab.
+Bunny / Revenge (Vendetta API) plugin. Adds a faint "Private" pill under the Friends tab (rename it in settings).
 Tap it, pass fingerprint or screen lock, and a short list of people appears. Tap one to open the DM.
 The list hides again after 60 seconds or after you open a DM.
 
@@ -10,7 +10,7 @@ The list hides again after 60 seconds or after you open a DM.
 2. Host `dist/hidden-friends/` somewhere that serves `manifest.json` and `index.js` over HTTPS
    (a GitHub repo with the `dist` folder committed works: `https://raw.githubusercontent.com/<you>/<repo>/main/dist/hidden-friends/`).
 3. In Bunny/Revenge: Plugins, plus button, paste that URL.
-4. Open the plugin settings, paste the user IDs you want, tap Save.
+4. Open the plugin settings (wrench icon), search a friend by name, tap to add.
 
 ## How the lock works
 
