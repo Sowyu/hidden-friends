@@ -56,7 +56,8 @@ async function enroll(): Promise<string> {
         timeout: 60000,
         attestation: "none",
     };
-    const raw = await passkeys().registerPasskey(JSON.stringify(req));
+    // Discord's native bridge reads requestJson.publicKey, same shape as navigator.credentials.create
+    const raw = await passkeys().registerPasskey(JSON.stringify({ publicKey: req }));
     const res = typeof raw === "string" ? JSON.parse(raw) : raw;
     if (!res?.id) throw new Error("passkey registration returned no id");
     return res.id as string;
@@ -76,7 +77,7 @@ export async function unlock(): Promise<boolean> {
         userVerification: "required",
         timeout: 60000,
     };
-    const raw = await passkeys().authenticatePasskey(JSON.stringify(req));
+    const raw = await passkeys().authenticatePasskey(JSON.stringify({ publicKey: req }));
     const res = typeof raw === "string" ? JSON.parse(raw) : raw;
     return res?.id === storage.credentialId;
 }
